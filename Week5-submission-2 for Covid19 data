@@ -1,0 +1,141 @@
+---
+title: "Week5 submission COVID19 dataset Report"
+output:
+  pdf_document: default
+  html_document: default
+date: '2022-04-03'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## COVID19 dataset
+
+We analyzed Covid19 data by using a website"https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+The datasets are "istime_series_covid19_confirmed_US.csv" and "time_series_covid19_deaths_US.csv". 
+Especially number of new deaths of each year by daily basis in New York were analysed.
+The steps we did are as follows.
+
+### step1: Start an Rmd Document
+
+We Created an RMD document in R Studio.
+
+### Step2: Tidy and Transform Your Data.
+
+First, I imported data from the website.
+I repeated and reused the same way what we did in the class for this part as for this part as instructed in final project instruction.
+pivot_longer mutate function for both US cases and deaths.
+For the detail, please see programming part.
+ 
+### Step 3: Add Visualizations and Analysis
+
+I created graph which represents number of cases of deaths((per_mill/per population)) in New York state for daily bases for each year 2020,2021,2021.
+And regression analysis were done for each graph.
+As a result of regression analysis, each from 2020, 2021, and 2022.
+The slope is negative, and it can be said that the number of deaths is on the decline. See the graph for each year in the below part.
+And the table below are results for each year for number of new deaths(per_mill/per population).
+As you can see number is decreasing from 2020 to 2021 but the it was increasing in 2022 again.
+ 
+ |Year   |Max|Min|Mean|
+ |-----  |---|---|----|
+ |2020   |1271.00|0.00|111.32|
+ |2021   |255.00|0.00|59.65|
+ |2022   |334.00|3.00|92.16|
+ 
+### Step 4: Add Bias Identification
+
+In the above result, we can say that downside trend were found in each year from 2020 to 2022. However from the result number of new deaths were increasing in 2022 again.
+There is some reason such changes of trends such as vaccination rate, variance of virus, thus further investigation is needed. 
+
+
+```{r}
+
+##Load library tidyverse and lubridate.
+library(lubridate)
+library(tidyverse)
+
+##Load CSV from the WebSite
+url_in <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+
+file_names <-
+c("time_series_covid19_confirmed_US.csv","time_series_covid19_deaths_US.csv")
+
+urls <- str_c(url_in,file_names)
+
+US_cases <- read_csv(urls[1])
+US_deaths <- read_csv(urls[2])
+
+
+US_cases <- US_cases %>%
+    pivot_longer(cols = -(UID:Combined_Key),
+                 names_to = "date",
+                 values_to = "cases") %>%
+    select(Admin2:cases) %>%
+    mutate(date = mdy(date)) %>%
+    select(-c(Lat,Long_))
+    
+US_deaths <- US_deaths %>%
+    pivot_longer(cols = -(UID:Population),
+                 names_to = "date",
+                 values_to = "deaths") %>%
+    select(Admin2:deaths) %>%
+    mutate(date = mdy(date)) %>%
+    select(-c(Lat,Long_))
+
+
+US <- US_cases %>%
+      full_join(US_deaths)
+
+US_by_state <- US %>%
+    group_by(Province_State, Country_Region, date) %>%
+    summarize(case = sum(cases), deaths = sum(deaths),
+              Population = sum(Population)) %>%
+    mutate(deaths_per_mill=deaths*1000000/Population) %>% 
+    select(Province_State, Country_Region, date,
+           case, deaths, deaths_per_mill, Population) %>%
+    ungroup()
+
+
+
+US_by_state <- US_by_state %>%
+    mutate(new_cases = case - lag(case),
+           new_deaths = deaths -lag(deaths))
+
+
+ny_date_ny_2020 <- US_by_state %>% 
+             filter(Province_State == "New York")%>%
+             filter(date >= as.Date("2020-01-01") & date <= as.Date("2020-12-31"))%>%
+             filter(new_deaths >= 0)%>%
+             select(1,3,9)
+lm_si = lm(formula = new_deaths ~ date, data = ny_date_ny_2020)
+plot( x = ny_date_ny_2020$date, ny_date_ny_2020$new_deaths,xlab = "date 2020", ylab = "N_count 2020" )
+abline( lm_si, col = "red", lwd = 4 )
+
+
+ny_date_ny_2021 <- US_by_state %>% 
+             filter(Province_State == "New York")%>%
+             filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))%>%
+             filter(new_deaths >= 0)%>%
+             select(1,3,9)
+
+lm_si = lm(formula = new_deaths ~ date, data = ny_date_ny_2021)
+plot( x = ny_date_ny_2021$date, ny_date_ny_2021$new_deaths,xlab = "date 2021", ylab = "N_count 2021" )
+abline( lm_si, col = "red", lwd = 4 )
+
+
+ny_date_ny_2022 <- US_by_state %>% 
+             filter(Province_State == "New York")%>%
+             filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))%>%
+             filter(new_deaths >= 0)%>%
+             select(1,3,9)
+lm_si = lm(formula = new_deaths ~ date, data = ny_date_ny_2022)
+plot( x = ny_date_ny_2022$date, ny_date_ny_2022$new_deaths,xlab = "date 2022", ylab = "N_count 2022" )
+abline( lm_si, col = "red", lwd = 4 )
+
+
+summary(ny_date_ny_2020)
+summary(ny_date_ny_2021)
+summary(ny_date_ny_2022)
+
+```
